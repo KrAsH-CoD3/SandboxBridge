@@ -7,6 +7,47 @@ const COMMAND_COOKIE = 'pw_cmd';
 const RESULT_COOKIE = 'pw_result';
 const STATUS_COOKIE = 'pw_status';
 
+// Execute custom code in sandbox iframe
+// Sandbox iframe provides:
+// - Isolated execution context (page can't detect)
+// - Exempt from page's CSP (can use eval)
+// - Full DOM access via bridge
+async function executeCustomCode(code) {
+  // Retry logic for background script connection
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          type: 'EXECUTE_CUSTOM',
+          code: code
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
+      
+      return result;
+      
+    } catch (error) {
+      // If connection failed and we have retries left, wait and try again
+      if (attempt < 2) {
+        console.log(`Background connection failed, retry ${attempt + 1}/3...`);
+        await new Promise(r => setTimeout(r, 100));
+        continue;
+      }
+      
+      // All retries failed - return error
+      return { 
+        error: 'Background script connection failed', 
+        message: error.message,
+        hint: 'Try reloading the extension or page'
+      };
+    }
+  }
+}
 
 // Safe execution environment
 async function executeCommand(cmd) {

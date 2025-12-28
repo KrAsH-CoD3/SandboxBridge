@@ -59,6 +59,58 @@
             });
         }
         
+        // Helper to get document info (extensible)
+        function getDocument() {
+            return new Promise((resolve) => {
+                const msgId = 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const listener = (event) => {
+                    if (event.data.type === 'DOM_RESULT' && event.data.id === msgId) {
+                        window.removeEventListener('message', listener);
+                        resolve(event.data.result);
+                    }
+                };
+                window.addEventListener('message', listener);
+                
+                window.parent.postMessage({
+                    type: 'DOCUMENT_QUERY',
+                    id: msgId
+                }, '*');
+                
+                setTimeout(() => {
+                    window.removeEventListener('message', listener);
+                    resolve(null);
+                }, 5000);
+            });
+        }
+        
+        // Custom query helper - query any document property by path
+        // Example: getCustom('body.className') or getCustom('head.children.length')
+        function getCustom(queryPath) {
+            return new Promise((resolve) => {
+                const msgId = 'custom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const listener = (event) => {
+                    if (event.data.type === 'DOM_RESULT' && event.data.id === msgId) {
+                        window.removeEventListener('message', listener);
+                        resolve(event.data.result);
+                    }
+                };
+                window.addEventListener('message', listener);
+                
+                window.parent.postMessage({
+                    type: 'CUSTOM_QUERY',
+                    queryPath: queryPath,
+                    id: msgId
+                }, '*');
+                
+                setTimeout(() => {
+                    window.removeEventListener('message', listener);
+                    resolve(null);
+                }, 5000);
+            });
+        }
+        
         window.addEventListener('message', async function(event) {
             // Only accept messages from our extension
             if (event.source !== window.parent) return;
@@ -71,8 +123,8 @@
                     // Wrap in async function to support await
                     // Inject DOM helper functions into scope
                     const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-                    const fn = new AsyncFunction('$', '$$', code);
-                    const result = await fn($, $$);
+                    const fn = new AsyncFunction('$', '$$', 'getDocument', 'getCustom', code);
+                    const result = await fn($, $$, getDocument, getCustom);
                     
                     // Send result back
                     event.source.postMessage({

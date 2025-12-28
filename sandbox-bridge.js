@@ -210,6 +210,37 @@ class SandboxBridge {
             }, 30000);
         });
     }
+    
+    // Provide DOM access to sandbox code via helper functions
+    async executeWithDOM(code) {
+        // Inject DOM helper functions that the sandbox can call via postMessage
+        const wrappedCode = `
+            // Helper to query DOM (sends message back to content script)
+            const $ = (selector) => {
+                return new Promise((resolve) => {
+                    const msgId = 'dom_' + Date.now() + Math.random();
+                    window.parent.postMessage({
+                        type: 'DOM_QUERY',
+                        selector: selector,
+                        id: msgId
+                    }, '*');
+                    
+                    const listener = (event) => {
+                        if (event.data.type === 'DOM_RESULT' && event.data.id === msgId) {
+                            window.removeEventListener('message', listener);
+                            resolve(event.data.result);
+                        }
+                    };
+                    window.addEventListener('message', listener);
+                });
+            };
+            
+            // User code
+            ${code}
+        `;
+        
+        return this.execute(wrappedCode);
+    }
 }
 
 // Export singleton
