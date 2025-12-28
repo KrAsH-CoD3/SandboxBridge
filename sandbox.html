@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sandbox</title>
+</head>
+<body>
+    <script>
+        // Helper to query single DOM element from content script
+        function $(selector) {
+            return new Promise((resolve) => {
+                const msgId = 'dom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const listener = (event) => {
+                    if (event.data.type === 'DOM_RESULT' && event.data.id === msgId) {
+                        window.removeEventListener('message', listener);
+                        resolve(event.data.result);
+                    }
+                };
+                window.addEventListener('message', listener);
+                
+                window.parent.postMessage({
+                    type: 'DOM_QUERY',
+                    selector: selector,
+                    id: msgId
+                }, '*');
+                
+                // Timeout
+                setTimeout(() => {
+                    window.removeEventListener('message', listener);
+                    resolve(null);
+                }, 5000);
+            });
+        }
+        
+        // Helper to query multiple DOM elements
+        function $$(selector) {
+            return new Promise((resolve) => {
+                const msgId = 'dom_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                
+                const listener = (event) => {
+                    if (event.data.type === 'DOM_RESULT' && event.data.id === msgId) {
+                        window.removeEventListener('message', listener);
+                        resolve(event.data.result || []);
+                    }
+                };
+                window.addEventListener('message', listener);
+                
+                window.parent.postMessage({
+                    type: 'DOM_QUERY_ALL',
+                    selector: selector,
+                    id: msgId
+                }, '*');
+                
+                setTimeout(() => {
+                    window.removeEventListener('message', listener);
+                    resolve([]);
+                }, 5000);
+            });
+        }
+        
+        window.addEventListener('message', async function(event) {
+            // Only accept messages from our extension
+            if (event.source !== window.parent) return;
+            
+            const { type, code, id } = event.data;
+            
+            if (type === 'EXECUTE_CODE') {
+                try {
+                    // Execute the code with eval
+                    // Wrap in async function to support await
+                    // Inject DOM helper functions into scope
+                    const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+                    const fn = new AsyncFunction('$', '$$', code);
+                    const result = await fn($, $$);
+                    
+                    // Send result back
+                    event.source.postMessage({
+                        type: 'EXECUTION_RESULT',
+                        id: id,
+                        result: result
+                    }, event.origin);
+                } catch (error) {
+                    // Send error back
+                    event.source.postMessage({
+                        type: 'EXECUTION_ERROR',
+                        id: id,
+                        error: {
+                            message: error.message,
+                            stack: error.stack
+                        }
+                    }, event.origin);
+                }
+            }
+        });
+        
+        // Signal ready
+        if (window.parent !== window) {
+            window.parent.postMessage({ type: 'SANDBOX_READY' }, '*');
+        }
+    </script>
+</body>
+</html>
