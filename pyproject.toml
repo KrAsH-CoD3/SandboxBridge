@@ -1,0 +1,16 @@
+[project]
+name = "sandbox-bridge"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Samm", email = "44311301+KrAsH-CoD3@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "playwright==1.55.0"
+]
+
+[build-system]
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"
